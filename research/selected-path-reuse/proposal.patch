@@ -1,0 +1,28 @@
+--- a/scripts/verify_selected_result.py
++++ b/scripts/verify_selected_result.py
+@@ -86,9 +86,13 @@
+     manifest = json.loads(manifest_path.read_text())
+     require(manifest.get('files'), 'Empty selected source inventory')
+     explicit = manifest.get('format') == 'repository-files-sha256-v1'
++    verified_paths = set()
+     if explicit:
+-        actual = {name: sha256(explicit_file(root, name).read_bytes()).hexdigest()
+-                  for name in manifest['files']}
++        actual = {}
++        for name in manifest['files']:
++            source = explicit_file(root, name)
++            actual[name] = sha256(source.read_bytes()).hexdigest()
++            verified_paths.add(source)
+     elif manifest.get('format') == 'repository-packages-sha256-v1':
+         roots = manifest.get('package_roots', [])
+         require(roots and len(roots) == len(set(roots)), 'Invalid package roots')
+@@ -109,7 +113,8 @@
+     # The legacy manifest uses package-relative keys; the newer format uses
+     # repository-relative keys. Bind the primary proof to the same checked files.
+     inventory_root = root if explicit or manifest.get('format') == 'repository-packages-sha256-v1' else manifest_path.parent
+-    verified_paths = {(inventory_root / relative).resolve() for relative in actual}
++    if not explicit:
++        verified_paths = {(inventory_root / relative).resolve() for relative in actual}
+     require(record['proof_supplements'], 'Missing construction proof supplement')
+     for relative, digest in record['proof_supplements'].items():
+         require(sha256(supplement_bytes(root, relative, digest, historical)).hexdigest() == digest,
